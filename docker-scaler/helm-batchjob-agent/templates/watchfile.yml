@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ template "fullname" . }}-watchfile-config"
+  labels:
+    name: watchfile-config-map
+    job-name: {{ template "fullname" . }}
+data: # hack to terminate dind sidecar https://blog.bryantluk.com/post/2018/05/13/terminating-sidecar-containers-in-kubernetes-job-specs/
+  watchfile.sh: |-
+    apk update && apk add inotify-tools
+    echo "waiting for file..."
+    file=/var/lib/sharedwatchfile/file.unlock
+    while [ ! -f "$file" ]
+    do
+      inotifywait -qqt 10 -e create -e moved_to "$(dirname $file)"
+    done
+    echo "found file"

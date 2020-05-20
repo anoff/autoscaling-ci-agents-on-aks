@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: {{ .Chart.Name }}
+    version: {{ .Chart.Version }}
+    azp-pool: {{ .Values.devops.pool }}
+    job-name: {{ template "fullname" . }}
+    release-name: {{ .Release.Name }}
+spec:
+  ttlSecondsAfterFinished: 30
+  template:
+    spec:
+      {{ if .Values.image.pullSecretName }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecretName }}
+      {{ end }}
+      restartPolicy: Never
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: Always
+        command:
+          - "/bin/sh"
+          - "-c"
+          - "./start-once.sh && touch /var/lib/sharedwatchfile/file.unlock"
+        env:
+          - name: AZP_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: "token-{{ template "fullname" . }}"
+                key: pipelinesToken
+          - name: AZP_URL
+            value: https://dev.azure.com/{{ .Values.devops.org }}
+          - name: AZP_POOL
+            value: {{ .Values.devops.pool }}
+          - name: AZP_AGENT_NAME
+            value: {{ .Release.Name }}
+          - name: AZP_WORK
+            value: {{ .Values.agent.workspace }}
+          - name: DOCKER_HOST
+            value: tcp://localhost:2375
+        volumeMounts:
+          - name: workspace
+            mountPath: {{ .Values.agent.workspace }}
+          - name: watchfile-lock
+            mountPath: /var/lib/sharedwatchfile/
+          - name: cache
+            mountPath: /mnt/shared-cache
+        resources:
+          limits:
+            memory: {{ .Values.resources.limits.memory | quote }}
+            cpu: {{ .Values.resources.limits.cpu | quote }}
+          requests:
+            memory: {{ .Values.resources.requests.memory | quote }}
+            cpu: {{ .Values.resources.requests.cpu | quote }}
+      - name: dind
+        image: docker:18.05-dind
+        securityContext:
+          privileged: true
+        command:
+          - "/bin/sh"
+          - "-c"
+          - "dockerd-entrypoint.sh & /bin/sh /var/lib/watchfile/watchfile.sh"
+        volumeMounts:
+          - name: dind-storage
+            mountPath: /var/lib/docker
+          - name: watchfile-script
+            mountPath: /var/lib/watchfile
+            readOnly: true
+          - name: watchfile-lock
+            mountPath: /var/lib/sharedwatchfile/
+            readOnly: true
+          - name: workspace # make sure the dind container has the same mounts as the agent to share volumes
+            mountPath: {{ .Values.agent.workspace }}
+          - name: cache
+            mountPath: /mnt/shared-cache
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: "{{ template "fullname" . }}-pvc"
+        - name: dind-storage
+          emptyDir: {}
+        - name: watchfile-script
+          configMap:
+            name: "{{ template "fullname" . }}-watchfile-config"
+            items:
+              - key: watchfile.sh
+                path: watchfile.sh
+        - name: watchfile-lock
+        - name: cache
+        {{ if and .Values.agent.sharedVolume.accountname .Values.agent.sharedVolume.accountkey }}
+          azureFile:
+            secretName: "sharedVolume-{{ template "fullname" . }}"
+            shareName: {{ .Values.agent.sharedVolume.sharename }}
+            readOnly: false
+        {{ else }}
+          emptyDir: {}
+        {{ end }}
+
+  backoffLimit: 4

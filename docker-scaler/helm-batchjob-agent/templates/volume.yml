@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "{{ template "fullname" . }}-pvc"
+  labels:
+    job-name: {{ template "fullname" . }}
+spec:
+  accessModes: [ ReadWriteOnce ]
+  storageClassName: {{ .Values.resources.storageclass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.resources.disk | quote }}

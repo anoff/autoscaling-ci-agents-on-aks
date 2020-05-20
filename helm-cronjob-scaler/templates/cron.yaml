@@ -1,0 +1,42 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+    name: scaler-cronjob
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: scaler-cronjob
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: scaler
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            imagePullPolicy: Always
+            command:
+              - "/bin/sh"
+              - "-c"
+              - "./login.sh && \
+                ./scaler.py -o \"$AZP_ORG\" -p \"$AZP_PROJECT\" -t $AZP_TOKEN --pool-name \"$AZP_POOL\" --shared-volume-account-name \"$SHARE_ACCOUNT_NAME\" --shared-volume-account-key \"$SHARE_ACCOUNT_KEY\" --helm-chart ./helm-job autoscale && \
+                ./scaler.py -o \"$AZP_ORG\" -p \"$AZP_PROJECT\" -t $AZP_TOKEN --pool-name \"$AZP_POOL\" -f ./helm-job clean"
+            env:
+              - name: AZP_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: "token-{{ template "fullname" . }}"
+                    key: pipelinesToken
+              - name: AZP_ORG
+                value: {{ .Values.devops.org }}
+              - name: AZP_POOL
+                value: {{ .Values.devops.pool }}
+              - name: AZP_PROJECT
+                value: {{ .Values.devops.project }}
+              - name: SHARE_ACCOUNT_NAME
+                value: {{ .Values.agent.sharedVolume.accountname }}
+              - name: SHARE_ACCOUNT_KEY
+                value: {{ .Values.agent.sharedVolume.accountkey }}
+                
+      backoffLimit: 0

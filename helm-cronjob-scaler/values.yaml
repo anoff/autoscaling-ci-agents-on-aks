@@ -1,0 +1,15 @@
+image:
+  repository: myACR.azurecr.io/pipelines-scaler
+  tag: latest
+  # pullSecretName: ''
+
+devops:
+  org: myOrg
+  # token: ''
+  pool: ubuntu18-aks
+  project: myProject
+
+agent:
+  sharedVolume:
+    accountname: "" # clear text
+    accountkey: "" # clear text

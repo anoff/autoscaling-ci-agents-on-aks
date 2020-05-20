@@ -1,0 +1,28 @@
+image:
+  repository: myACR.azurecr.io/pipelines-agent
+  tag: latest
+  # pullSecretName: ''
+
+devops:
+  org: myOrg
+  pool: ubuntu18-aks
+
+agent:
+  # name: rick
+  workspace: '/_workspace' # where the storage disk is mounted
+  sharedVolume:
+    sharename: myStorage # name of the file share in storage account (Azure)
+    accountname: "" # base64
+    accountkey: "" # base64
+
+resources:
+  limits:
+    cpu: 4
+    memory: 16Gi
+  requests:
+    cpu: 2
+    memory: 6Gi
+  disk: "50Gi"
+  storageclass: "default"
+
+extraEnv: {}
